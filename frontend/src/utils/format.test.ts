@@ -83,5 +83,6 @@ describe('format helpers', () => {
 
     expect(linkMatchesProtocols(link, { DNS: true, TCP: false })).toBe(true);
     expect(linkMatchesProtocols(link, { DNS: false, TCP: true })).toBe(false);
+    expect(linkMatchesProtocols(link, { DNS: false, TCP: false })).toBe(false);
   });
 });

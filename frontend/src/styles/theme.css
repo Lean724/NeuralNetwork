@@ -181,6 +181,53 @@ body,
   box-shadow: 0 0 8px var(--proto-color);
 }
 
+.connecting-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  animation: pulseGlow 1.4s ease-in-out infinite;
+}
+
+.connecting-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #38bdf8;
+  box-shadow: 0 0 6px #38bdf8;
+  animation: pingDot 1.4s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 4px rgba(56, 189, 248, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.55);
+  }
+}
+
+@keyframes pingDot {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.35);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.9);
+    opacity: 0.8;
+  }
+}
+
 .control-actions {
   display: flex;
   align-items: center;
@@ -232,6 +279,23 @@ body,
 .icon-btn.is-warning {
   border-color: rgba(251, 191, 36, 0.65);
   color: var(--accent-amber);
+}
+
+.host-focus-btn {
+  border-color: rgba(236, 72, 153, 0.4);
+  background: rgba(236, 72, 153, 0.1);
+  color: #f472b6;
+}
+
+.host-focus-btn:hover {
+  border-color: rgba(236, 72, 153, 0.85);
+  background: rgba(236, 72, 153, 0.22);
+  color: #fbcfe8;
+  box-shadow: 0 0 10px rgba(236, 72, 153, 0.35);
+}
+
+.host-focus-btn .icon-host {
+  color: #ec4899;
 }
 
 .bloom-control {

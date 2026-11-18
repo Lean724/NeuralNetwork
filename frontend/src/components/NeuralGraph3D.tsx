@@ -25,7 +25,9 @@ interface NeuralGraph3DProps {
   bloomStrength: number;
   paused: boolean;
   focusNodeId: string | null;
+  focusSeq: number;
   resetCameraSeq: number;
+  filterActivationTime: number | null;
   pulseQueueRef: React.MutableRefObject<PulseEvent[]>;
   onSelectNode: (node: NodeInfo | null) => void;
   onSelectLink: (link: LinkInfo | null) => void;
@@ -96,7 +98,9 @@ export const NeuralGraph3D: React.FC<NeuralGraph3DProps> = ({
   bloomStrength,
   paused,
   focusNodeId,
+  focusSeq,
   resetCameraSeq,
+  filterActivationTime,
   pulseQueueRef,
   onSelectNode,
   onSelectLink,
@@ -144,6 +148,8 @@ export const NeuralGraph3D: React.FC<NeuralGraph3DProps> = ({
         key === 'a' ||
         key === 's' ||
         key === 'd' ||
+        key === 'z' ||
+        key === 'c' ||
         key === 'arrowup' ||
         key === 'arrowdown' ||
         key === 'arrowleft' ||
@@ -344,7 +350,7 @@ export const NeuralGraph3D: React.FC<NeuralGraph3DProps> = ({
     }
   }, [bloomStrength]);
 
-  // Enfocar cámara en nodo buscado o al reiniciar cámara
+  // Enfocar cámara en nodo buscado, host o al reiniciar cámara
   useEffect(() => {
     const fg = fgRef.current;
     if (!fg || !focusNodeId) return;
@@ -358,13 +364,84 @@ export const NeuralGraph3D: React.FC<NeuralGraph3DProps> = ({
       { x: target.x, y: target.y, z: target.z },
       900
     );
-  }, [focusNodeId]);
+  }, [focusNodeId, focusSeq]);
 
   useEffect(() => {
     const fg = fgRef.current;
     if (!fg || resetCameraSeq === 0) return;
     fg.cameraPosition({ x: 0, y: 80, z: 320 }, { x: 0, y: 0, z: 0 }, 900);
   }, [resetCameraSeq]);
+
+  // Animación progresiva de conexión de neuronas durante 10 segundos al activar filtros
+  const [connectedNodeIds, setConnectedNodeIds] = useState<Set<string>>(new Set());
+  const connectedNodeIdsRef = useRef<Set<string>>(new Set());
+  connectedNodeIdsRef.current = connectedNodeIds;
+
+  useEffect(() => {
+    if (filterActivationTime === null) {
+      setConnectedNodeIds(new Set());
+      return;
+    }
+
+    const orderedNodes = [...nodes].sort((a, b) => {
+      const roleWeight: Record<string, number> = {
+        host: 0,
+        gateway: 1,
+        lan: 2,
+        external: 3
+      };
+      const wa = roleWeight[a.role] ?? 2;
+      const wb = roleWeight[b.role] ?? 2;
+      if (wa !== wb) return wa - wb;
+      return a.id.localeCompare(b.id);
+    });
+
+    const total = orderedNodes.length;
+    if (total === 0) {
+      setConnectedNodeIds(new Set());
+      return;
+    }
+
+    const stepMs = 10000 / total;
+
+    const updateConnections = () => {
+      const elapsed = performance.now() - filterActivationTime;
+      if (elapsed >= 10000) {
+        const allIds = new Set(orderedNodes.map((n) => n.id));
+        setConnectedNodeIds((prev) => {
+          if (prev.size === allIds.size) return prev;
+          return allIds;
+        });
+        return true;
+      }
+
+      const count = Math.min(total, Math.floor(elapsed / stepMs) + 1);
+      const activeSlice = orderedNodes.slice(0, count);
+      const newIds = new Set(activeSlice.map((n) => n.id));
+
+      // Destello sináptico en las neuronas recién conectadas
+      const prevIds = connectedNodeIdsRef.current;
+      for (const n of activeSlice) {
+        if (!prevIds.has(n.id)) {
+          flashUntilRef.current.set(n.id, performance.now() + 380);
+        }
+      }
+
+      setConnectedNodeIds((prev) => {
+        if (prev.size === newIds.size) return prev;
+        return newIds;
+      });
+      return false;
+    };
+
+    updateConnections();
+    const interval = setInterval(() => {
+      const done = updateConnections();
+      if (done) clearInterval(interval);
+    }, 40);
+
+    return () => clearInterval(interval);
+  }, [filterActivationTime, nodes]);
 
   // Bucle 60 FPS para animación neuronal + trayectorias de pulsos luminosos
   useEffect(() => {
@@ -376,7 +453,7 @@ export const NeuralGraph3D: React.FC<NeuralGraph3DProps> = ({
       const dt = Math.min(0.05, (now - lastTime) / 1000);
       lastTime = now;
 
-      // 0. Movimiento de cámara 3D con teclado (WASD / Flechas / Q-E / Shift)
+      // 0. Movimiento de cámara 3D con teclado (WASD / Flechas / Q-E / Z-C / Shift)
       const fg = fgRef.current;
       if (fg) {
         const keys = keysPressedRef.current;
@@ -386,8 +463,10 @@ export const NeuralGraph3D: React.FC<NeuralGraph3DProps> = ({
         const right = Boolean(keys['d'] || keys['arrowright']);
         const up = Boolean(keys['e']);
         const down = Boolean(keys['q']);
+        const zoomIn = Boolean(keys['z']);
+        const zoomOut = Boolean(keys['c']);
 
-        if (forward || backward || left || right || up || down) {
+        if (forward || backward || left || right || up || down || zoomIn || zoomOut) {
           const camera = fg.camera() as THREE.PerspectiveCamera | undefined;
           const controls = fg.controls() as { target?: THREE.Vector3; update?: () => void } | undefined;
 
@@ -413,6 +492,24 @@ export const NeuralGraph3D: React.FC<NeuralGraph3DProps> = ({
 
             camera.position.add(delta);
             controls.target.add(delta);
+
+            // Zoom In (Z) y Zoom Out (C) relativo al punto focal (target)
+            if (zoomIn || zoomOut) {
+              const toTarget = new THREE.Vector3().subVectors(controls.target, camera.position);
+              const currentDist = toTarget.length();
+              if (currentDist > 1e-3) {
+                const zoomDir = toTarget.normalize();
+                const zoomSpeed = (keys['shift'] ? 420 : 210) * dt;
+                if (zoomIn) {
+                  const step = Math.min(zoomSpeed, Math.max(0, currentDist - 20));
+                  camera.position.addScaledVector(zoomDir, step);
+                }
+                if (zoomOut) {
+                  camera.position.addScaledVector(zoomDir, -zoomSpeed);
+                }
+              }
+            }
+
             controls.update?.();
           }
         }
@@ -425,8 +522,11 @@ export const NeuralGraph3D: React.FC<NeuralGraph3DProps> = ({
       // 1. Drenar nuevos pulsos recibidos por WebSocket
       if (pulseLayer && !pausedRef.current && pulseQueueRef.current.length > 0) {
         const queued = pulseQueueRef.current.splice(0, pulseQueueRef.current.length);
+        const connSet = connectedNodeIdsRef.current;
         for (const p of queued) {
           if (activePulsesRef.current.length >= MAX_ACTIVE_PULSES) break;
+          // Solo emitir pulsos si ambas neuronas están conectadas en la animación
+          if (!connSet.has(p.src) || !connSet.has(p.dst)) continue;
           const srcNode = nodeMap.get(p.src);
           const dstNode = nodeMap.get(p.dst);
           if (!srcNode || !dstNode) continue;
@@ -639,6 +739,13 @@ export const NeuralGraph3D: React.FC<NeuralGraph3DProps> = ({
         nodeThreeObjectExtend={false}
         linkSource="source"
         linkTarget="target"
+        linkVisibility={(l) => {
+          if (filterActivationTime === null) return false;
+          const link = l as LinkInfo;
+          const sId = endpointId(link.source);
+          const tId = endpointId(link.target);
+          return connectedNodeIds.has(sId) && connectedNodeIds.has(tId);
+        }}
         linkCurvature={0.22}
         linkWidth={(l) => {
           const link = l as LinkInfo;

@@ -50,8 +50,8 @@ export const HudStats: React.FC<HudStatsProps> = ({ status, stats, onActivateSim
               ? 'Conectando...'
               : 'Reconectando...'}
           </span>
-          <span className="nav-hint" title="Usa WASD o las Flechas del teclado para desplazarte por la red 3D (Shift para acelerar, Q/E vertical)">
-            WASD / Flechas
+          <span className="nav-hint" title="WASD o Flechas para moverte, Z/C para Zoom In/Out, Q/E vertical, Shift para acelerar">
+            WASD · Z/C Zoom
           </span>
         </div>
 

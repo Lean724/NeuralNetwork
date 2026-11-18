@@ -7,6 +7,7 @@ import {
   Play,
   Radio,
   Search,
+  Server,
   Sparkles,
   Trash2
 } from 'lucide-react';
@@ -28,7 +29,9 @@ interface ControlBarProps {
   onBloomChange: (val: number) => void;
   onTogglePause: () => void;
   onResetCamera: () => void;
+  onFocusHost: () => void;
   onClearTopology: () => void;
+  connectingProgress: { connected: number; total: number; remainingSec: number } | null;
 }
 
 export const ControlBar: React.FC<ControlBarProps> = ({
@@ -46,7 +49,9 @@ export const ControlBar: React.FC<ControlBarProps> = ({
   onBloomChange,
   onTogglePause,
   onResetCamera,
-  onClearTopology
+  onFocusHost,
+  onClearTopology,
+  connectingProgress
 }) => {
   const selectValue = stats.captureMode === 'simulation' ? '__simulation__' : stats.interface;
 
@@ -104,7 +109,7 @@ export const ControlBar: React.FC<ControlBarProps> = ({
 
       <div className="protocol-pills" role="group" aria-label="Filtros por protocolo">
         {ALL_PROTOCOLS.map((proto) => {
-          const active = enabledProtocols[proto] !== false;
+          const active = Boolean(enabledProtocols[proto]);
           const color = getProtocolColor(proto);
           return (
             <button
@@ -120,9 +125,25 @@ export const ControlBar: React.FC<ControlBarProps> = ({
             </button>
           );
         })}
+        {connectingProgress && (
+          <span className="connecting-badge" title="Conectando neuronas progresivamente en 10s">
+            <span className="connecting-dot" />
+            Conectando {connectingProgress.connected}/{connectingProgress.total} ({connectingProgress.remainingSec}s)
+          </span>
+        )}
       </div>
 
       <div className="control-actions">
+        <button
+          type="button"
+          className="action-btn host-focus-btn"
+          onClick={onFocusHost}
+          title="Centrar vista en el Dispositivo Principal (Host Docker)"
+        >
+          <Server size={14} className="icon-host" />
+          <span>Host Docker</span>
+        </button>
+
         <button
           type="button"
           className={`action-btn ${settings.groupExternal ? 'is-active' : ''}`}

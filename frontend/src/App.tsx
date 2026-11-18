@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ControlBar } from './components/ControlBar';
 import { HudStats } from './components/HudStats';
 import { InspectorPanel } from './components/InspectorPanel';
@@ -7,8 +7,9 @@ import { useNeuralSocket } from './hooks/useNeuralSocket';
 import { NodeInfo, PulseEvent } from './types/network';
 import { ALL_PROTOCOLS, matchesNodeSearch } from './utils/format';
 
+// En primera instancia, ningún filtro de protocolo está preseleccionado
 const initialProtocols = ALL_PROTOCOLS.reduce<Record<string, boolean>>((acc, p) => {
-  acc[p] = true;
+  acc[p] = false;
   return acc;
 }, {});
 
@@ -19,7 +20,14 @@ export const App: React.FC = () => {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedLinkId, setSelectedLinkId] = useState<string | null>(null);
   const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
+  const [focusSeq, setFocusSeq] = useState(0);
   const [resetCameraSeq, setResetCameraSeq] = useState(0);
+  const [filterActivationTime, setFilterActivationTime] = useState<number | null>(null);
+  const [connectingProgress, setConnectingProgress] = useState<{
+    connected: number;
+    total: number;
+    remainingSec: number;
+  } | null>(null);
 
   const pulseQueueRef = useRef<PulseEvent[]>([]);
   const enabledProtocolsRef = useRef(enabledProtocols);
@@ -74,11 +82,59 @@ export const App: React.FC = () => {
   );
 
   const handleToggleProtocol = (proto: string) => {
-    setEnabledProtocols((prev) => ({
-      ...prev,
-      [proto]: prev[proto] === false
-    }));
+    setEnabledProtocols((prev) => {
+      const willBeActive = !prev[proto];
+      const next = {
+        ...prev,
+        [proto]: willBeActive
+      };
+      const anyActive = Object.values(next).some(Boolean);
+      if (!anyActive) {
+        setFilterActivationTime(null);
+        setConnectingProgress(null);
+      } else if (willBeActive) {
+        // Al seleccionar un chipfilter, inicia la animación de 10s de conexión neuronal
+        setFilterActivationTime(performance.now());
+      }
+      return next;
+    });
   };
+
+  // Progreso visual de conexión progresiva (10s / N neuronas)
+  useEffect(() => {
+    if (filterActivationTime === null) {
+      setConnectingProgress(null);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      const elapsed = performance.now() - filterActivationTime;
+      const total = nodes.length;
+      if (total === 0 || elapsed >= 10000) {
+        setConnectingProgress(null);
+        return;
+      }
+      const stepMs = 10000 / total;
+      const connected = Math.min(total, Math.floor(elapsed / stepMs) + 1);
+      const remainingSec = Math.max(1, Math.ceil((10000 - elapsed) / 1000));
+      setConnectingProgress({ connected, total, remainingSec });
+    }, 120);
+
+    return () => clearInterval(interval);
+  }, [filterActivationTime, nodes.length]);
+
+  const handleFocusHost = useCallback(() => {
+    const hostNode =
+      nodes.find((n) => n.role === 'host') ||
+      nodes.find((n) => n.role === 'gateway') ||
+      nodes[0];
+    if (hostNode) {
+      setSelectedLinkId(null);
+      setSelectedNodeId(hostNode.id);
+      setFocusNodeId(hostNode.id);
+      setFocusSeq((s) => s + 1);
+    }
+  }, [nodes]);
 
   const handleSearchSubmit = () => {
     const q = searchQuery.trim();
@@ -88,6 +144,7 @@ export const App: React.FC = () => {
       setSelectedLinkId(null);
       setSelectedNodeId(found.id);
       setFocusNodeId(found.id);
+      setFocusSeq((s) => s + 1);
     }
   };
 
@@ -124,7 +181,9 @@ export const App: React.FC = () => {
         bloomStrength={settings.bloomStrength}
         paused={paused}
         focusNodeId={focusNodeId}
+        focusSeq={focusSeq}
         resetCameraSeq={resetCameraSeq}
+        filterActivationTime={filterActivationTime}
         pulseQueueRef={pulseQueueRef}
         onSelectNode={(n) => setSelectedNodeId(n ? n.id : null)}
         onSelectLink={(l) => setSelectedLinkId(l ? l.id : null)}
@@ -149,12 +208,14 @@ export const App: React.FC = () => {
           setFocusNodeId(null);
           setResetCameraSeq((s) => s + 1);
         }}
+        onFocusHost={handleFocusHost}
         onClearTopology={() => {
           pulseQueueRef.current = [];
           setSelectedNodeId(null);
           setSelectedLinkId(null);
           void clearTopology();
         }}
+        connectingProgress={connectingProgress}
       />
 
       <InspectorPanel

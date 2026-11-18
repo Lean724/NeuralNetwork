@@ -96,11 +96,15 @@ export function linkMatchesProtocols(
   link: LinkInfo,
   enabledProtocols: Record<string, boolean>
 ): boolean {
+  const anyActive = Object.values(enabledProtocols).some(Boolean);
+  if (!anyActive) {
+    return false;
+  }
   const protos = Object.keys(link.protocols || {});
   if (protos.length === 0) {
-    return enabledProtocols[link.dominantProtocol] !== false;
+    return Boolean(enabledProtocols[link.dominantProtocol]);
   }
-  return protos.some((p) => enabledProtocols[p] !== false);
+  return protos.some((p) => Boolean(enabledProtocols[p]));
 }
 
 export function endpointId(endpoint: string | NodeInfo): string {
