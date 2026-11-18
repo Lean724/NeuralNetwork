@@ -1,0 +1,24 @@
+# Dependencias y builds
+node_modules/
+frontend/node_modules/
+frontend/dist/
+dist/
+
+# Entorno y datos locales
+.env
+*.db
+*.db-wal
+*.db-shm
+*.log
+
+# Binarios Go
+neuralnetwork
+gateway
+*.exe
+*.test
+
+# IDEs y OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

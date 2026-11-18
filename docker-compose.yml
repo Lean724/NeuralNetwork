@@ -1,0 +1,52 @@
+services:
+  neuralnetwork:
+    build: .
+    image: neuralnetwork:1.0.0
+    container_name: neuralnetwork
+    restart: unless-stopped
+    network_mode: host
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+    environment:
+      - NN_INTERNAL_PORT=${NN_INTERNAL_PORT:-18080}
+      - NN_PORT=${NN_PORT:-8080}
+      - NN_INTERFACE=${NN_INTERFACE:-auto}
+      - NN_DEFAULT_MODE=${NN_DEFAULT_MODE:-live}
+      - NN_NODE_TTL_SEC=${NN_NODE_TTL_SEC:-120}
+      - NN_PROMISCUOUS=${NN_PROMISCUOUS:-true}
+      - NN_DB_PATH=/data/neuralnetwork.db
+      - NN_STATIC_DIR=/app/public
+    volumes:
+      - neuralnet_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:${NN_INTERNAL_PORT:-18080}/api/health >/dev/null 2>&1 || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  neuralnetwork-gateway:
+    build: .
+    image: neuralnetwork:1.0.0
+    container_name: neuralnetwork-gateway
+    restart: unless-stopped
+    depends_on:
+      neuralnetwork:
+        condition: service_healthy
+    entrypoint: ["/app/gateway"]
+    command: ["--gateway"]
+    environment:
+      - NN_PORT=8080
+      - NN_INTERNAL_PORT=${NN_INTERNAL_PORT:-18080}
+    ports:
+      - "${NN_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/gateway-health"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+volumes:
+  neuralnet_data:
