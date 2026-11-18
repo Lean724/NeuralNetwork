@@ -622,6 +622,17 @@ body,
   font-weight: 500;
 }
 
+.nav-hint {
+  font-size: 0.68rem;
+  color: var(--accent-cyan);
+  background: rgba(0, 240, 255, 0.08);
+  border: 1px solid rgba(0, 240, 255, 0.22);
+  padding: 2px 7px;
+  border-radius: 4px;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
 .conn-dot {
   width: 8px;
   height: 8px;

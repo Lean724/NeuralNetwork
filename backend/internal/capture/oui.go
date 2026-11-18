@@ -150,7 +150,7 @@ func DetectHostNetwork() (map[string]bool, string) {
 				case *net.IPAddr:
 					ip = v.IP
 				}
-				if ip != nil && !ip.IsMulticast() && !ip.IsUnspecified() {
+				if ip != nil && ip.To4() != nil && !ip.IsMulticast() && !ip.IsUnspecified() {
 					hostIPs[ip.String()] = true
 				}
 			}

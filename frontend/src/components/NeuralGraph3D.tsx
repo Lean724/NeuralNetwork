@@ -128,6 +128,52 @@ export const NeuralGraph3D: React.FC<NeuralGraph3DProps> = ({
   searchQueryRef.current = searchQuery;
   const pausedRef = useRef(paused);
   pausedRef.current = paused;
+  const keysPressedRef = useRef<Record<string, boolean>>({});
+
+  // Manejo de teclado para navegación WASD / Flechas en la escena 3D
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeTag = (document.activeElement?.tagName || '').toLowerCase();
+      if (activeTag === 'input' || activeTag === 'textarea' || activeTag === 'select') {
+        return;
+      }
+
+      const key = e.key.toLowerCase();
+      if (
+        key === 'w' ||
+        key === 'a' ||
+        key === 's' ||
+        key === 'd' ||
+        key === 'arrowup' ||
+        key === 'arrowdown' ||
+        key === 'arrowleft' ||
+        key === 'arrowright' ||
+        key === 'q' ||
+        key === 'e' ||
+        key === 'shift'
+      ) {
+        keysPressedRef.current[key] = true;
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
+      keysPressedRef.current[key] = false;
+    };
+
+    const handleBlur = () => {
+      keysPressedRef.current = {};
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', handleBlur);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', handleBlur);
+    };
+  }, []);
 
   // Medir tamaño del contenedor
   useEffect(() => {
@@ -329,6 +375,48 @@ export const NeuralGraph3D: React.FC<NeuralGraph3DProps> = ({
       rafId = requestAnimationFrame(animate);
       const dt = Math.min(0.05, (now - lastTime) / 1000);
       lastTime = now;
+
+      // 0. Movimiento de cámara 3D con teclado (WASD / Flechas / Q-E / Shift)
+      const fg = fgRef.current;
+      if (fg) {
+        const keys = keysPressedRef.current;
+        const forward = Boolean(keys['w'] || keys['arrowup']);
+        const backward = Boolean(keys['s'] || keys['arrowdown']);
+        const left = Boolean(keys['a'] || keys['arrowleft']);
+        const right = Boolean(keys['d'] || keys['arrowright']);
+        const up = Boolean(keys['e']);
+        const down = Boolean(keys['q']);
+
+        if (forward || backward || left || right || up || down) {
+          const camera = fg.camera() as THREE.PerspectiveCamera | undefined;
+          const controls = fg.controls() as { target?: THREE.Vector3; update?: () => void } | undefined;
+
+          if (camera && controls?.target) {
+            const baseSpeed = keys['shift'] ? 360 : 190;
+            const moveDist = baseSpeed * dt;
+
+            // Vector de dirección de la cámara
+            const dir = new THREE.Vector3();
+            camera.getWorldDirection(dir);
+
+            // Vector lateral (perpendicular a la dirección de visión y a la vertical)
+            const side = new THREE.Vector3().crossVectors(dir, camera.up).normalize();
+
+            // Desplazamiento resultante
+            const delta = new THREE.Vector3();
+            if (forward) delta.addScaledVector(dir, moveDist);
+            if (backward) delta.addScaledVector(dir, -moveDist);
+            if (right) delta.addScaledVector(side, moveDist);
+            if (left) delta.addScaledVector(side, -moveDist);
+            if (up) delta.addScaledVector(camera.up, moveDist);
+            if (down) delta.addScaledVector(camera.up, -moveDist);
+
+            camera.position.add(delta);
+            controls.target.add(delta);
+            controls.update?.();
+          }
+        }
+      }
 
       const pulseLayer = pulseLayerRef.current;
       const nodeMap = nodeMapRef.current;

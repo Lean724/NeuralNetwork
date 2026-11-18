@@ -35,8 +35,8 @@ func ListInterfaces() ([]models.NetworkInterface, error) {
 		addrs := make([]string, 0, len(dev.Addresses))
 		isLoop := dev.Name == "lo" || dev.Name == "lo0"
 		for _, a := range dev.Addresses {
-			if a.IP == nil {
-				continue
+			if a.IP == nil || a.IP.To4() == nil {
+				continue // Ignorar direcciones IPv6
 			}
 			if a.IP.IsLoopback() {
 				isLoop = true
@@ -208,15 +208,11 @@ func decodePacket(pkt gopacket.Packet) (models.PacketEvent, bool) {
 		return ev, isValidEndpointPair(ev.SrcIP, ev.DstIP)
 	}
 
-	// Capa IP (v4 o v6)
+	// Capa IP (exclusivamente IPv4)
 	if ip4Layer := pkt.Layer(layers.LayerTypeIPv4); ip4Layer != nil {
 		ip4 := ip4Layer.(*layers.IPv4)
 		ev.SrcIP = ip4.SrcIP.String()
 		ev.DstIP = ip4.DstIP.String()
-	} else if ip6Layer := pkt.Layer(layers.LayerTypeIPv6); ip6Layer != nil {
-		ip6 := ip6Layer.(*layers.IPv6)
-		ev.SrcIP = ip6.SrcIP.String()
-		ev.DstIP = ip6.DstIP.String()
 	} else {
 		return ev, false
 	}
@@ -225,8 +221,8 @@ func decodePacket(pkt gopacket.Packet) (models.PacketEvent, bool) {
 		return ev, false
 	}
 
-	// Capa Transporte / Control
-	if pkt.Layer(layers.LayerTypeICMPv4) != nil || pkt.Layer(layers.LayerTypeICMPv6) != nil {
+	// Capa Transporte / Control (solo ICMPv4)
+	if pkt.Layer(layers.LayerTypeICMPv4) != nil {
 		ev.Protocol = "ICMP"
 		return ev, true
 	}
@@ -254,7 +250,7 @@ func decodePacket(pkt gopacket.Packet) (models.PacketEvent, bool) {
 		}
 		if dns.QR && len(dns.Answers) > 0 {
 			for _, ans := range dns.Answers {
-				if ans.IP != nil {
+				if ans.IP != nil && ans.IP.To4() != nil {
 					ev.ResolvedIP = ans.IP.String()
 					if name := strings.TrimSuffix(string(ans.Name), "."); name != "" {
 						ev.DNSName = name
@@ -273,6 +269,10 @@ func isValidEndpointPair(src, dst string) bool {
 		return false
 	}
 	if dst == "255.255.255.255" {
+		return false
+	}
+	// Ignorar completamente direcciones IPv6
+	if strings.Contains(src, ":") || strings.Contains(dst, ":") {
 		return false
 	}
 	return true
