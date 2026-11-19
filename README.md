@@ -1,6 +1,6 @@
 # NeuralNetwork
 
-Monitor visual de tráfico de red en tiempo real representado como una **red neuronal 3D interactiva** (WebGL / Three.js). Cada dispositivo es una neurona, las conexiones son sinapsis y los paquetes viajan como impulsos luminosos codificados por protocolo.
+**Real-time network traffic visualizer for Docker** with an interactive 3D network graph built using WebGL and Three.js. It monitors devices, connections, and network packets, displaying traffic by protocol with live capture or a built-in simulation mode.
 
 ## Características principales
 
